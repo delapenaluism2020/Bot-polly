@@ -1,4 +1,5 @@
 import os
+import io
 import docx
 import boto3
 from telegram import Update
@@ -18,20 +19,41 @@ polly_client = boto3.client(
     region_name=AWS_REGION
 )
 
+# VOZ MASCULINA: 'Andres' (Neural - Es-MX) o 'Pedro' (Neural - Es-US)
+VOICE_ID = 'Andres'
+
+def split_text(text, max_length=2500):
+    """Divide el texto en partes menores a max_length sin cortar oraciones."""
+    paragraphs = text.split('\n')
+    chunks = []
+    current_chunk = ""
+
+    for paragraph in paragraphs:
+        if len(current_chunk) + len(paragraph) + 1 <= max_length:
+            current_chunk += paragraph + "\n"
+        else:
+            if current_chunk.strip():
+                chunks.append(current_chunk.strip())
+            current_chunk = paragraph + "\n"
+
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
+
+    return chunks
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "¡Hola! Mándame un archivo .docx y lo convertiré en una nota de voz de alta calidad con Amazon Polly."
+        "¡Hola! Envíame un archivo .docx completo y lo convertiré en notas de voz con voz masculina usando Amazon Polly."
     )
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     document = update.message.document
     
-    # Verificar que el archivo sea .docx
     if not document.file_name.endswith('.docx'):
         await update.message.reply_text("Por favor, envía un archivo con formato .docx")
         return
 
-    await update.message.reply_text("Procesando tu documento, dame un momento...")
+    await update.message.reply_text("Procesando tu documento completo. Esto puede tomar un par de minutos según la longitud...")
 
     file_id = document.file_id
     new_file = await context.bot.get_file(file_id)
@@ -39,7 +61,6 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await new_file.download_to_drive(doc_path)
 
     try:
-        # Extraer texto del .docx
         doc = docx.Document(doc_path)
         full_text = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
 
@@ -47,28 +68,32 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("El documento no contiene texto para leer.")
             return
 
-        # Limitar longitud si excede el máximo de Polly en una llamada
-        if len(full_text) > 3000:
-            full_text = full_text[:3000]
+        # Dividir texto en fragmentos para Polly
+        chunks = split_text(full_text)
+        total_chunks = len(chunks)
 
-        # Sintetizar voz con Amazon Polly (Motor Neural)
-        response = polly_client.synthesize_speech(
-            Engine='neural',
-            OutputFormat='mp3',
-            Text=full_text,
-            VoiceId='Lupe'  # Voz en español
-        )
+        combined_audio = io.BytesIO()
 
-        audio_path = "output_voice.mp3"
-        if "AudioStream" in response:
-            with open(audio_path, "wb") as f:
-                f.write(response["AudioStream"].read())
+        for i, chunk in enumerate(chunks):
+            response = polly_client.synthesize_speech(
+                Engine='neural',
+                OutputFormat='mp3',
+                Text=chunk,
+                VoiceId=VOICE_ID
+            )
+            if "AudioStream" in response:
+                combined_audio.write(response["AudioStream"].read())
 
-        # Enviar nota de voz por Telegram
+        combined_audio.seek(0)
+        audio_path = "output_voice_full.mp3"
+        with open(audio_path, "wb") as f:
+            f.write(combined_audio.read())
+
+        # Enviar audio final
         with open(audio_path, "rb") as audio:
             await update.message.reply_voice(voice=audio)
 
-        # Limpiar archivos temporales
+        # Limpiar archivos
         if os.path.exists(doc_path):
             os.remove(doc_path)
         if os.path.exists(audio_path):
