@@ -2,8 +2,21 @@ import os
 import io
 import docx
 import boto3
+import threading
+from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+
+# --- SERVIDOR FANTASMA PARA METERLE "TRÁFICO" A RENDER ---
+app_flask = Flask(__name__)
+
+@app_flask.route('/')
+def home():
+    return "Bot de Telegram activo con Amazon Polly."
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host='0.0.0.0', port=port, use_reloader=False)
 
 # --- CREDENCIALES ---
 TELEGRAM_TOKEN = "8950160590:AAFXBcLatWnBSwhKwS6kKhh0DzMviOsjinM"
@@ -95,11 +108,15 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Ocurrió un error al procesar el archivo: {str(e)}")
 
 def main():
+    # Arrancamos el servidor web fantasma en un hilo separado
+    threading.Thread(target=run_web, daemon=True).start()
+
+    # Arrancamos el bot de Telegram
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     
-    print("Bot en marcha...")
+    print("Bot en marcha con servidor fantasma...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
