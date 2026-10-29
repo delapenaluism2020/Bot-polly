@@ -2,16 +2,8 @@ import os
 import io
 import docx
 import boto3
-from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-
-# --- SERVIDOR WEB FLASK PARA EL WEB SERVICE DE RENDER ---
-app_flask = Flask(__name__)
-
-@app_flask.route('/')
-def home():
-    return "Bot de Telegram activo y funcionando con Amazon Polly."
 
 # --- CREDENCIALES ---
 TELEGRAM_TOKEN = "8950160590:AAFXBcLatWnBSwhKwS6kKhh0DzMviOsjinM"
@@ -48,7 +40,7 @@ def split_text(text, max_length=2500):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "¡Hola! Envíame un archivo .docx completo y lo convertiré en notas de voz con voz masculina (Andres) usando Amazon Polly."
+        "¡Hola! Envíame un archivo .docx completo y lo convertiré en notas de voz con la voz masculina de Andrés usando Amazon Polly."
     )
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -102,14 +94,13 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Ocurrió un error al procesar el archivo: {str(e)}")
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))
-    import threading
-    threading.Thread(target=lambda: app_flask.run(host='0.0.0.0', port=port), daemon=True).start()
-
+def main():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     
     print("Bot en marcha...")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
+
+if __name__ == '__main__':
+    main()
