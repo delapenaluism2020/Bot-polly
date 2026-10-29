@@ -1,4 +1,4 @@
-timport os
+import os
 import io
 import docx
 import boto3
@@ -102,34 +102,14 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Ocurrió un error al procesar el archivo: {str(e)}")
 
-def run_flask():
+if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
-    app_flask.run(host='0.0.0.0', port=port)
-
-if __name__ == '__main__':
-    # Iniciar Flask en un hilo separado para que responda al puerto web de Render
     import threading
-    threading.Thread(target=run_flask, daemon=True).start()
+    threading.Thread(target=lambda: app_flask.run(host='0.0.0.0', port=port), daemon=True).start()
 
-    # Iniciar el bot de Telegram
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     
     print("Bot en marcha...")
-    app.run_polling()
-h.exists(audio_path):
-            os.remove(audio_path)
-
-    except Exception as e:
-        await update.message.reply_text(f"Ocurrió un error al procesar el archivo: {str(e)}")
-
-if __name__ == '__main__':
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
-    
-    print("Bot en marcha...")
-    app.run_polling()
-
     app.run_polling()
