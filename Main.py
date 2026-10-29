@@ -1,30 +1,19 @@
-import os
+timport os
 import io
 import docx
 import boto3
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-# --- SERVIDOR WEB FALSO PARA CUMPLIR CON RENDER ---
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is running!")
-    def log_message(self, format, *args):
-        return
+# --- SERVIDOR WEB FLASK PARA EL WEB SERVICE DE RENDER ---
+app_flask = Flask(__name__)
 
-def run_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    server.serve_forever()
+@app_flask.route('/')
+def home():
+    return "Bot de Telegram activo y funcionando con Amazon Polly."
 
-# Iniciar servidor web falso en segundo plano
-threading.Thread(target=run_server, daemon=True).start()
-
-# --- CONFIGURACIÓN DE CREDENCIALES ---
+# --- CREDENCIALES ---
 TELEGRAM_TOKEN = "8950160590:AAFXBcLatWnBSwhKwS6kKhh0DzMviOsjinM"
 AWS_ACCESS_KEY = "AKIAVWQLDBPXIJKSO3T6"
 AWS_SECRET_KEY = "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"
@@ -37,7 +26,6 @@ polly_client = boto3.client(
     region_name=AWS_REGION
 )
 
-# VOZ MASCULINA: 'Andres'
 VOICE_ID = 'Andres'
 
 def split_text(text, max_length=2500):
@@ -109,6 +97,28 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if os.path.exists(doc_path):
             os.remove(doc_path)
         if os.path.exists(audio_path):
+            os.remove(audio_path)
+
+    except Exception as e:
+        await update.message.reply_text(f"Ocurrió un error al procesar el archivo: {str(e)}")
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host='0.0.0.0', port=port)
+
+if __name__ == '__main__':
+    # Iniciar Flask en un hilo separado para que responda al puerto web de Render
+    import threading
+    threading.Thread(target=run_flask, daemon=True).start()
+
+    # Iniciar el bot de Telegram
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    
+    print("Bot en marcha...")
+    app.run_polling()
+h.exists(audio_path):
             os.remove(audio_path)
 
     except Exception as e:
